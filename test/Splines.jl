@@ -36,10 +36,15 @@ include("ExampleSpline.jl")
     @testset "Specific spline values in $u" for u in 0:0.5:5
         u += 0.05 * randn()
         u = min(max(0, u), 5)
+
         knot_idx = find_span(u, B)
         y = basis_funs_deriv(knot_idx, u, 2, B)
         expected_y = example_spline.(u, knot_idx .- (B.P:-1:0))
+        expected_y_diff1 = example_spline_diff1.(u, knot_idx .- (B.P:-1:0))
+        expected_y_diff2 = example_spline_diff2.(u, knot_idx .- (B.P:-1:0))
 
         @test y[0, :].parent ≈ expected_y
+        @test y[1, :].parent ≈ expected_y_diff1
+        @test y[2, :].parent ≈ expected_y_diff2
     end
 end
