@@ -5,11 +5,16 @@ import OffsetArrays
 import StatsBase
 
 export
-    find_span,
+    BSpline,
+    SplineRegData,
+
     basis_funs,
     basis_funs_deriv,
-    BSpline
+    find_span,
+    regression
 
 include("Splines.jl")
+include("DesignMatrix.jl")
+include("Regression.jl")
 
 end # module
