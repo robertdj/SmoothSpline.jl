@@ -29,6 +29,7 @@ function vector_to_banded_matrix(x)
     nrows = div(length(x), 4)
 
     X = zeros(nrows, nrows)
+
     X[LinearAlgebra.diagind(X)] = x[1:nrows]
 
     X[LinearAlgebra.diagind(X, 1)] = x[nrows + 1:2*nrows - 1]
@@ -44,26 +45,51 @@ function vector_to_banded_matrix(x)
 end
 
 
+function vector_to_upper_triangular(x)
+    nrows = div(length(x), 4)
+
+    X = zeros(nrows, nrows)
+    
+    # factorization in R with dpbfa.f. Storage format is peculiar; works backwards
+    X[1, 1] = x[4]
+    X[1:2, 2] = x[7:8]
+    X[1:3, 3] = x[10:12]
+    for col in 4:nrows
+        idx1 = col - 4 .+ (1:4)
+        idx2 = (col - 1) * 4 .+ (1:4)
+        X[idx1, col] = x[idx2]
+    end
+
+    return X
+end
+
+
 @testset "Design matrix" begin
     design_matrix_julia = SmoothSpline.compute_design_matrix(spline_data)
     W = LinearAlgebra.diagm(spline_data.W)
-    XWX = design_matrix_julia' * W * design_matrix_julia
+    weighted_design_matrix = transpose(design_matrix_julia) * W * design_matrix_julia
 
-    design_matrix_r = vector_to_banded_matrix(spline_model_r[:auxM][:XWX])
+    weighted_design_matrix_r = vector_to_banded_matrix(spline_model_r[:auxM][:XWX])
 
-    @test XWX ≈ design_matrix_r
-    @test maximum(abs, XWX - design_matrix_r) < 1e-14
+    @test weighted_design_matrix ≈ weighted_design_matrix_r
+    @test maximum(abs, weighted_design_matrix - weighted_design_matrix_r) < 1e-14
 end
 
 
-@testset "Cholesky decomposition of LHS" begin
-    design_matrix_r = vector_to_banded_matrix(spline_model_r[:auxM][:XWX])
+@testset "R's storage of Tikhonov matrix" begin
+    weighted_design_matrix_r = vector_to_banded_matrix(spline_model_r[:auxM][:XWX])
+    lambda_r = spline_model_r[:lambda]
+    gram_r = vector_to_banded_matrix(spline_model_r[:auxM][:Sigma])
 
-    cholesky_r = vector_to_banded_matrix(spline_model_r[:auxM][:R])
+    tikhonov_matrix_r = weighted_design_matrix_r + lambda_r * gram_r
+    cholesky_r = vector_to_upper_triangular(spline_model_r[:auxM][:R])
+    
+    @test transpose(cholesky_r) * cholesky_r ≈ tikhonov_matrix_r
+    @test maximum(abs, transpose(cholesky_r) * cholesky_r - tikhonov_matrix_r) < 1e-14
 end
 
 
-@testset "Tikhonov matrix" begin
+@testset "Gram matrix" begin
     sigma_julia = SmoothSpline.compute_ridge_term(spline_data)
     sigma_r = vector_to_banded_matrix(spline_model_r[:auxM][:Sigma])
 end
