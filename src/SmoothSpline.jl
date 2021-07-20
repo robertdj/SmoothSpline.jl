@@ -1,5 +1,7 @@
 module SmoothSpline
 
+using RCall
+
 import LinearAlgebra
 import OffsetArrays
 import StatsBase
@@ -11,7 +13,8 @@ export
     basis_funs,
     basis_funs_deriv,
     find_span,
-    regression
+    regression,
+    compute_tikhonov_matrix
 
 include("Splines.jl")
 include("DesignMatrix.jl")
