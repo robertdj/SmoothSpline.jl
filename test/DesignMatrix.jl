@@ -61,7 +61,7 @@ include("ReshapeROutput.jl")
     
     
     @testset "Compare Gram matrix with R" begin
-        gram_julia = SmoothSpline.compute_ridge_term(spline_data)
+        gram_julia = SmoothSpline.compute_gram_matrix(spline_data)
     
         lambda_r = spline_model_r[:lambda]
         gram_r = vector_to_banded_matrix(spline_model_r[:auxM][:Sigma])

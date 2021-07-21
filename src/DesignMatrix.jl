@@ -123,7 +123,7 @@ function compute_design_matrix(sr)
 end
 
 
-function compute_ridge_term(sr)
+function compute_gram_matrix(sr)
     N = max_function_index(sr.B)
     sigma = OffsetArrays.OffsetMatrix(zeros(N + 1, N + 1), 0:N, 0:N)
 
@@ -134,7 +134,7 @@ function compute_ridge_term(sr)
     for i = 0:N
         j_upper = min(N, i + p + 1)
         for j = i:j_upper
-            entry = compute_ridge_term_entry(i, j, sr.B)
+            entry = compute_gram_matrix_entry(i, j, sr.B)
             sigma[i, j] = entry
             sigma[j, i] = entry
         end
@@ -144,7 +144,7 @@ function compute_ridge_term(sr)
 end
 
 
-function compute_ridge_term_entry(i, j, B)
+function compute_gram_matrix_entry(i, j, B)
     p = B.P
     if abs(i - j) > p
         return 0.0

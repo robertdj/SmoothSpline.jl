@@ -1,7 +1,7 @@
 function regression(sr::SplineRegData, spar = 0.5)
     # design_matrix = compute_design_matrix(sr)
     # weight_matrix = Diagonal(sr.W)
-    # sigma = compute_ridge_term(sr)
+    # sigma = compute_gram_matrix(sr)
 
     # normal_matrix = transpose(design_matrix) * weight_matrix * design_matrix
 
@@ -28,7 +28,7 @@ end
 function compute_tikhonov_matrix(sr::SplineRegData, spar)
     design_matrix = compute_design_matrix(sr)
     weight_matrix = LinearAlgebra.Diagonal(sr.W)
-    sigma = compute_ridge_term(sr)
+    sigma = compute_gram_matrix(sr)
 
     normal_matrix = LinearAlgebra.transpose(design_matrix) * weight_matrix * design_matrix
 
