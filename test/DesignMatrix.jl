@@ -1,4 +1,5 @@
 using SmoothSpline
+using Mocking
 using Test
 
 # import RCall
@@ -17,9 +18,9 @@ include("ReshapeROutput.jl")
     hp = mtcars[!, :HP]
     mpg = mtcars[!, :MPG]
 
-    Random.seed!(1)
-    hp = [0.0; 1/3; 0.5; 1.0]
-    # hp = [0.0; rand(4); 1.0] |> sort
+    # Random.seed!(1)
+    # hp = [0.0; 1/3; 0.5; 1.0]
+    hp = [0.0; rand(5); 1.0] |> sort
     mpg = rand(length(hp))
     # hp = 1:4
     # mpg = 1:4
@@ -80,16 +81,14 @@ include("ReshapeROutput.jl")
         knots = unique(spline_data.B.Knots)
         max_integration_error = 0
 
-        for i in 1:size(gram_julia, 1)
-            for j in 1:size(gram_julia, 2)
-                gram_quadgk[i, j], integration_error = QuadGK.quadgk(
-                    u -> SmoothSpline.single_basis_function_deriv(i - 1, u, 2, spline_data.B)[2] * 
-                    SmoothSpline.single_basis_function_deriv(j - 1, u, 2, spline_data.B)[2],
-                    knots...
-                )
+        for j in 1:size(gram_julia, 2), i in 1:size(gram_julia, 1)
+            gram_quadgk[i, j], integration_error = QuadGK.quadgk(
+                u -> SmoothSpline.single_basis_function_deriv(i - 1, u, 2, spline_data.B)[2] * 
+                SmoothSpline.single_basis_function_deriv(j - 1, u, 2, spline_data.B)[2],
+                knots...
+            )
 
-                max_integration_error = max(integration_error, max_integration_error)
-            end
+            max_integration_error = max(integration_error, max_integration_error)
         end
 
         @test gram_quadgk ≈ transpose(gram_quadgk)
@@ -102,12 +101,15 @@ include("ReshapeROutput.jl")
 
     
     @testset "Compare Gram matrix with R" begin
-        gram_julia = SmoothSpline.compute_gram_matrix(spline_data)
-    
         gram_r = vector_to_banded_matrix(spline_model_r[:auxM][:Sigma])
 
-        @show maximum(abs, gram_julia - gram_r)
-        # @test maximum(abs, gram_julia - gram_r) < 1e-5
+        Mocking.activate()
+        patch = @patch SmoothSpline.OneThird() = 0.333
+
+        apply(patch) do
+            gram_julia = SmoothSpline.compute_gram_matrix(spline_data)
+            @test gram_r ≈ gram_julia
+        end
     end
     
     
@@ -117,8 +119,8 @@ include("ReshapeROutput.jl")
     
         tikhonov_matrix_julia, _ = compute_tikhonov_matrix(spline_data, 0.5)
 
-        condition_number_r = LinearAlgebra.cond(tikhonov_matrix_r)
-        condition_number_julia = LinearAlgebra.cond(tikhonov_matrix_julia)
+        @show condition_number_r = LinearAlgebra.cond(tikhonov_matrix_r)
+        @show condition_number_julia = LinearAlgebra.cond(tikhonov_matrix_julia)
 
         @test condition_number_julia <= condition_number_r
     end
