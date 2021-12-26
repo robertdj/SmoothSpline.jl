@@ -183,4 +183,3 @@ function single_basis_function_deriv(function_idx, u, n, B)
 
     return ders[:, function_index_in_ders]
 end
-

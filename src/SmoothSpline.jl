@@ -1,15 +1,24 @@
 module SmoothSpline
 
+using RCall
+using Mocking
+
 import LinearAlgebra
 import OffsetArrays
 import StatsBase
 
 export
-    find_span,
+    BSpline,
+    SplineRegData,
+
     basis_funs,
     basis_funs_deriv,
-    BSpline
+    find_span,
+    regression,
+    compute_tikhonov_matrix
 
 include("Splines.jl")
+include("DesignMatrix.jl")
+include("Regression.jl")
 
 end # module
