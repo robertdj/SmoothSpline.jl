@@ -67,11 +67,6 @@ end
 
 
 function extend_internal_knots(knots, p = 3)
-    length_knots = length(knots)
-
-    # knots[
-    #     vcat(repeat(1:1, p), 1:length_knots, repeat(length_knots:length_knots, p))
-    # ]
     vcat(
         repeat(knots[1:1], p),
         knots,
@@ -107,7 +102,6 @@ end
 function compute_design_matrix(sr)
     number_of_functions = max_function_index(sr.B) + 1
     length_x = length(sr.X)
-    # design_matrix = zeros(length_x, number_of_functions)
 
     p = sr.B.P
     design_matrix0 = OffsetArrays.OffsetMatrix(zeros(length_x, number_of_functions), 0:length_x - 1, 0:number_of_functions - 1)
@@ -133,13 +127,11 @@ function compute_gram_matrix(sr)
     sigma = OffsetArrays.OffsetMatrix(zeros(N + 1, N + 1), 0:N, 0:N)
 
     p = sr.B.P
-    # length_x = length(sr.X)
-    # X = OffsetArrays.OffsetVector(sr.X, 0:length_x - 1)
 
     for i = 0:N
         j_upper = min(N, i + p + 1)
         for j = i:j_upper
-            entry = compute_gram_matrix_entry1(i, j, sr.B)
+            entry = compute_gram_matrix_entry(i, j, sr.B)
             sigma[i, j] = entry
             sigma[j, i] = entry
         end
@@ -149,41 +141,10 @@ function compute_gram_matrix(sr)
 end
 
 
+"""
+Dummy function to use different approximations of `1/3`.
+"""
 OneThird() = 1/3
-
-
-function compute_gram_matrix_entry1(i, j, B)
-    p = B.P
-    if abs(i - j) > p
-        return 0.0
-    end
-
-    # min_index, max_index = minmax(i, j)
-
-    result = 0.0
-    M = max_knot_index(B)
-
-    one_third = (@mock OneThird())
-
-    for k in 0:M - 1
-        a_i = single_basis_function_deriv(i, B.Knots[k], 2, B)[2]
-        a_j = single_basis_function_deriv(j, B.Knots[k], 2, B)[2]
-        upper_values_i = single_basis_function_deriv(i, B.Knots[k + 1], 2, B)[2]
-        upper_values_j = single_basis_function_deriv(j, B.Knots[k + 1], 2, B)[2]
-
-        Δyᵢ = upper_values_i - a_i
-        Δyⱼ = upper_values_j - a_j
-
-        Δₖ = B.Knots[k + 1] - B.Knots[k]
-
-        # this_result = a_i * a_j + 0.5 * (a_i * Δyⱼ + a_j * Δyᵢ) + Δyⱼ * Δyᵢ * 0.333
-        this_result = a_i * a_j + 0.5 * (a_i * Δyⱼ + a_j * Δyᵢ) + Δyⱼ * Δyᵢ * one_third
-        this_result *= Δₖ
-        result += this_result
-    end
-
-    return result
-end
 
 
 function compute_gram_matrix_entry(i, j, B)
@@ -193,40 +154,31 @@ function compute_gram_matrix_entry(i, j, B)
     end
 
     min_index, max_index = minmax(i, j)
+    M = max_knot_index(B)
+
+    one_third = (@mock OneThird())
 
     result = 0.0
 
-    if max_index < p 
-        lower_boundary_values_i = single_basis_function_deriv(min_index, B.Knots[0], 1, B)
-        lower_boundary_values_j = single_basis_function_deriv(max_index, B.Knots[0], 2, B)
+    k_start = min_index
+    k_stop = min(max_index + p + 1, M - 1)
+    for k in k_start:k_stop
+        
+        aᵢ = single_basis_function_deriv(i, B.Knots[k], 2, B)[2]
+        aⱼ = single_basis_function_deriv(j, B.Knots[k], 2, B)[2]
+        upper_values_i = single_basis_function_deriv(i, B.Knots[k + 1], 2, B)[2]
+        upper_values_j = single_basis_function_deriv(j, B.Knots[k + 1], 2, B)[2]
 
-        result -= lower_boundary_values_i[1] * lower_boundary_values_j[2]
-    end
+        Δyᵢ = upper_values_i - aᵢ
+        Δyⱼ = upper_values_j - aⱼ
 
-    number_of_knots = max_knot_index(B) + 1
+        Δₖ = B.Knots[k + 1] - B.Knots[k]
 
-    if min_index >= number_of_knots - 2p
-        upper_boundary_values_i = single_basis_function_deriv(min_index, B.Knots[end], 1, B)
-        upper_boundary_values_j = single_basis_function_deriv(max_index, B.Knots[end], 2, B)
+        this_result = aᵢ * aⱼ + 0.5 * (aᵢ * Δyⱼ + aⱼ * Δyᵢ) + Δyⱼ * Δyᵢ * one_third
+        this_result *= Δₖ
 
-        result += upper_boundary_values_i[1] * upper_boundary_values_j[2]
-    end
-
-    k_start = max(min_index, p)
-    k_stop = min(max_index + p, number_of_knots - p - 2)
-    for k = k_start:k_stop
-        lower_x = B.Knots[k]
-        lower_spline_values_i = single_basis_function_deriv(i, lower_x, 0, B)
-        spline_values_j = single_basis_function_deriv(j, lower_x, 3, B)
-
-        upper_x = B.Knots[k + 1]
-        upper_spline_values_i = single_basis_function_deriv(i, upper_x, 0, B)
-
-        term = spline_values_j[3] * (upper_spline_values_i[0] - lower_spline_values_i[0])
-
-        result -= term
+        result += this_result
     end
 
     return result
 end
-
