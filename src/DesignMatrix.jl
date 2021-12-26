@@ -67,6 +67,11 @@ end
 
 
 function extend_internal_knots(knots, p = 3)
+    length_knots = length(knots)
+
+    # knots[
+    #     vcat(repeat(1:1, p), 1:length_knots, repeat(length_knots:length_knots, p))
+    # ]
     vcat(
         repeat(knots[1:1], p),
         knots,
@@ -128,19 +133,56 @@ function compute_gram_matrix(sr)
     sigma = OffsetArrays.OffsetMatrix(zeros(N + 1, N + 1), 0:N, 0:N)
 
     p = sr.B.P
-    length_x = length(sr.X)
-    X = OffsetArrays.OffsetVector(sr.X, 0:length_x - 1)
+    # length_x = length(sr.X)
+    # X = OffsetArrays.OffsetVector(sr.X, 0:length_x - 1)
 
     for i = 0:N
         j_upper = min(N, i + p + 1)
         for j = i:j_upper
-            entry = compute_gram_matrix_entry(i, j, sr.B)
+            entry = compute_gram_matrix_entry1(i, j, sr.B)
             sigma[i, j] = entry
             sigma[j, i] = entry
         end
     end
 
     return sigma.parent
+end
+
+
+OneThird() = 1/3
+
+
+function compute_gram_matrix_entry1(i, j, B)
+    p = B.P
+    if abs(i - j) > p
+        return 0.0
+    end
+
+    # min_index, max_index = minmax(i, j)
+
+    result = 0.0
+    M = max_knot_index(B)
+
+    one_third = (@mock OneThird())
+
+    for k in 0:M - 1
+        a_i = single_basis_function_deriv(i, B.Knots[k], 2, B)[2]
+        a_j = single_basis_function_deriv(j, B.Knots[k], 2, B)[2]
+        upper_values_i = single_basis_function_deriv(i, B.Knots[k + 1], 2, B)[2]
+        upper_values_j = single_basis_function_deriv(j, B.Knots[k + 1], 2, B)[2]
+
+        Δyᵢ = upper_values_i - a_i
+        Δyⱼ = upper_values_j - a_j
+
+        Δₖ = B.Knots[k + 1] - B.Knots[k]
+
+        # this_result = a_i * a_j + 0.5 * (a_i * Δyⱼ + a_j * Δyᵢ) + Δyⱼ * Δyᵢ * 0.333
+        this_result = a_i * a_j + 0.5 * (a_i * Δyⱼ + a_j * Δyᵢ) + Δyⱼ * Δyᵢ * one_third
+        this_result *= Δₖ
+        result += this_result
+    end
+
+    return result
 end
 
 
@@ -152,7 +194,7 @@ function compute_gram_matrix_entry(i, j, B)
 
     min_index, max_index = minmax(i, j)
 
-    result = 0.0;
+    result = 0.0
 
     if max_index < p 
         lower_boundary_values_i = single_basis_function_deriv(min_index, B.Knots[0], 1, B)

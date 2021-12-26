@@ -1,6 +1,7 @@
 module SmoothSpline
 
 using RCall
+using Mocking
 
 import LinearAlgebra
 import OffsetArrays
