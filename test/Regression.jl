@@ -14,20 +14,22 @@ using Random
 
     # smooth.spline scales x values to the closed unit interval before calling the compiled code
     # Test both scaled and unscaled here
-    N = rand(3:10)
-    x_values = [10 * rand(5), [0.0; rand(5); 1.0]]
+    N = rand(5:20)
+    x_values = [10 * rand(N), [0.0; rand(N); 1.0]]
     sort!.(x_values)
 
-    @testset "Compare regression coefficients with R" for x in x_values
+    spar_values = rand(2)
+
+    @testset "Compare regression coefficients with R" for x in x_values, spar in spar_values
         y = rand(length(x))
     
-        spline_model_r = RCall.rcopy(R"smooth.spline(x = $x, y = $y, spar = 0.5, keep.stuff = TRUE)")
+        spline_model_r = RCall.rcopy(R"smooth.spline(x = $x, y = $y, spar = $spar, keep.stuff = TRUE)")
         coefficients_r = spline_model_r[:fit][:coef]
 
         spline_data = SplineRegData(x, y)
     
         apply(patch) do
-            coefficients_julia = SmoothSpline.regression(spline_data, 0.5)
+            coefficients_julia = SmoothSpline.regression(spline_data, spar)
 
             @test coefficients_julia ≈ coefficients_r
         end
