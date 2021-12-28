@@ -1,0 +1,269 @@
+\documentclass[a4paper]{scrartcl}
+
+% Text
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{csquotes}
+
+% Math
+\usepackage{amsmath, amssymb}
+\usepackage{mathtools}
+\usepackage{bm}
+	\newcommand{\vv}[1]{\ensuremath{\bm{#1}}}
+	\newcommand{\mat}[1]{\ensuremath{\bm{#1}}}
+
+    \newcommand{\T}[1]{\ensuremath{{#1}^{T}}}
+
+	\newcommand\dd{\ensuremath{\:d}}
+
+	\newcommand\R{\ensuremath{\mathbb{R}}}
+	\newcommand\Z{\ensuremath{\mathbb{Z}}}
+	\DeclareMathOperator\supp{supp}
+	\DeclareMathOperator\diag{diag}
+	\DeclareMathOperator\tr{tr}
+
+% Set
+% \given is part of the syntax, make sure it exists
+% \providecommand\given{}
+\newcommand\given{\:\vert\:}
+\newcommand\SetSymbol[1][]{
+	\nonscript\: #1 \vert \nonscript\:
+	\mathopen{} % make - etc behave as sign
+	\allowbreak % in text, allow line break after the \given
+}
+\DeclarePairedDelimiterX\Set[1]{\{}{\}}{
+	% Change is local to \Set
+	\renewcommand\given{\SetSymbol[\delimsize]}
+	#1
+}
+
+\usepackage{graphicx}
+\usepackage{asymptote}
+
+\usepackage[colorlinks=true]{hyperref}
+
+\usepackage{cleveref}
+
+\usepackage{biblatex}
+\bibliography{literature.bib}
+
+\title{Smoothing Splines}
+\author{Robert Dahl Jacobsen}
+
+\begin{document}
+
+\maketitle
+
+Here I document the math used in the Julia package \textit{SmoothSpline} that performs regression with B-splines with a Tikhonov regularisation.
+
+The \textit{SmoothSpline} package is a port of the \textit{smooth.spline} function from R.
+
+
+\section{B-splines}
+\label{sec:bsplines}
+
+My source for B-splines is the excellent book \cite{Piegl:Tiller:1997} with very detailed algorithms.
+The only downside for a Julia implementation is that all algorithms use 0-based arrays.
+I can spend a lot of time fiddling with index conversion so I include the relevant algorithms here with 1-based arrays.
+
+In \textit{SmoothSpline} we use cubic B-splines, so the general degree $p$ from \cite{Piegl:Tiller:1997} is always $p = 3$.
+We therefore use a more compact notation:
+The $i$'th spline of degree $p$ is in \cite{Piegl:Tiller:1997} denoted $N_{i,p}$, but is here simply denoted $N_i$.
+However, to avoid \enquote{magic} occurences of 3 (or 4), I still use $p$ in the following to denote the degree.
+
+
+\section{Regression with B-splines}
+\label{sec:regression}
+
+We consider observations $(x_i, y_i)$ for $i = 1, \ldots, n$. 
+It is allowed to have multiple observations with similar $x$ values (and $y$ values).
+Observation $i$ has an associated weight $w_i$, that by default is $1$.
+Observations with similar $x$ values are grouped by summing their weights and taking the average of thier $y$ values.
+In the following we assume that all $x$ values are distinct and that the observations are sorted by their $x$ values.
+
+The design matrix of the regression problem is the matrix $\mat X$ of size $n\times n$ with entries
+\begin{equation*}
+    X_{i,j} = N_j(u_i).
+\end{equation*}
+
+The weights are collected in a diagonal matrix $\mat W = \diag(w_i, i = 1, \ldots, n)$.
+To enforce a smoother interpolant a Tikhonov regularisation is used.
+The regularisation term is the Gram matrix $\mat\Sigma$ of size $n\times n$ with entries
+\begin{equation*}
+    \Sigma_{i,j} =
+    \int N_i^{(2)}(t) N_j^{(2)}(t) \dd t.
+\end{equation*}
+
+For each value of $\lambda > 0$, we have a solution $\vv\beta$ to the corresponding regression problem, namely the solution to the equation
+\begin{equation}
+    \label{eq:normal_equation}
+    \mat A \vv \beta
+    = \bigl(\T{\mat X} \mat W \mat X + \lambda \mat\Sigma\bigr) \vv\beta
+    = \T{\mat X} \mat W \vv y 
+    = \widetilde{\vv y}.
+\end{equation}
+
+This can be solved fast with a few tricks.
+Both $\mat X$ and $\mat\Sigma$ are \textit{banded} with lower and upper band $p$.
+That is, $\mat X_{i,j} = \mat\Sigma_{i,j} = 0$ when $|i - j| > p$.
+This implies that the Cholesky factorization of $\mat A$ is also banded with the same band -- and we have fast algorithms for computing this \cite[Section 4.3]{Golub:van_Loan:2013}.
+More specifically, we let $\mat C$ denote the upper triangular matrix of the Cholesky factorization such that 
+\begin{equation*}
+    \T{\mat C} \mat C = \T{\mat X} \mat W \mat X + \lambda \mat\Sigma.
+\end{equation*}
+
+With this convention $\T{\mat C}$ is a lower triangular matrix and we can the use the classic forward and back substitution to solve \cref{eq:normal_equation}:
+First solve $\T{\mat C} \vv z = \widetilde{\vv y}$ and then $\mat C \vv \beta = \vv z$.
+
+In R, \textit{smooth.spline} rely on the Fortran routines \textit{dpbfa} and \textit{dpbsl} from Linpack \cite{Dongarra:Moler:Bunch:Stewart:1979} to compute the Cholesky factorization and solving \cref{eq:normal_equation}, respectively.
+
+Note that the matrix $\mat A$ may be ill-conditioned even with the Tikhonov term.
+In fact, I have seen substantial differences between $\vv\beta$'s computed with generic solvers and the special solvers used in \textit{SmoothSpline}.
+
+
+\subsection{Computing matrices}
+
+Before solving \cref{eq:normal_equation} we must compute the matrices involved.
+
+In the \textit{documentation} for \textit{smooth.spline} (and therefore not under the same license as the \textit{code}) it is noted that the Lagrange multiplier $\lambda$ is data dependent.
+That is, an appropriate value for $\lambda$ depends on the values of the observations.
+This makes it more delicate to choose $\lambda$.
+
+But \textit{smooth.spline} aids the user by offering a data independent parameter \enquote{spar}, where $0 < \text{spar} \leq 1$, that is mapped to an appropriate $\lambda$.
+The map is
+\begin{equation*}
+    \lambda = r\cdot 256^{3\cdot\text{spar} - 1},
+    \quad
+    r = \frac{\tr(\T{\mat X} \mat W \mat X)}{\tr(\mat\Sigma)}.
+\end{equation*}
+
+Furthermore, \textit{smooth.spline} rescales the $x$ values.
+This has an impact on $\mat\Sigma$, but the impact on $\mat A$ is de facto alleviated by the above mapping.
+
+
+\subsubsection{Design matrix}
+
+The design matrix is straightforward once we know how to compute the splines.
+We know from \cite[P2.1]{Piegl:Tiller:1997} that the support of $N_i$ is $[u_i, u_{i+p+1}]$ and therefore 
+
+
+\subsubsection{Gram matrix}
+
+We also have closed-form expressions for the Tikhonov matrix $\mat\Sigma$.
+All spline functions are supported on (a subset of) $[u_0, u_m]$ and we first note that
+\begin{equation}
+    \label{eq:sigma_entry}
+    \Sigma_{i,j}
+    = \int_{u_0}^{u_m} N_i^{(2)}(t) N_j^{(2)}(t) \dd t
+    = \sum_{k = 0}^{m - 1} \int_{u_k}^{u_{k+1}} N_i^{(2)}(t) N_j^{(2)}(t) \dd t.
+\end{equation}
+
+With partial integration each of the integrals can be computed as
+
+\begin{equation*}
+    \int_{u_k}^{u_{k+1}} N_i^{(2)}(t) N_j^{(2)}(t) \dd t
+    = \Bigl[ N_i'(t) N_j^{(2)}(t) \Bigr]_{u_k}^{u_{k+1}} -
+    \int_{u_k}^{u_{k+1}} N_i'(t) N_j^{(3)}(t) \dd t.
+\end{equation*}
+
+On each interval $[u_k, u_{k+1}]$, every spline is a polynomial of degree at most three.
+Hence the third derivative is a constant and
+
+\begin{equation*}
+    \int_{u_k}^{u_{k+1}} N_i'(t) N_j^{(3)}(t) \dd t
+    = N_j^{(3)}(u_k) \bigl(N_i(u_{k+1}) - N_i(u_k)\bigr).
+\end{equation*}
+
+Substituting all this into \cref{eq:sigma_entry} we note a telescoping sum and arrive at the final expression:
+\begin{equation}
+    \label{eq:sigma_entry_computation}
+    \Sigma_{i,j}
+    = N_i'(u_m) N_j^{(2)}(u_m) - N_i'(u_0) N_j^{(2)}(u_0) 
+    - \sum_{k = 0}^{m - 1} N_j^{(3)}(u_k) \bigl(N_i(u_{k+1}) - N_i(u_k)\bigr).
+\end{equation}
+
+In \textit{smooth.spline} the integral in \cref{eq:sigma_entry} is computed differently:
+On each interval $[u_k, u_{k+1}]$, the function $N_i^{(2)}$ is a polynomial of degree at most one.
+In the code, this polynomial is parameterized as
+
+\begin{equation*}
+    N_i^{(2)}(t) 
+    = a_{i,k} + b_{i,k} (t - u_k), 
+    \quad u_k\leq t\leq u_{k+1}.
+\end{equation*}
+
+Expanding parentheses in $N_i^{(2)} N_j^{(2)}$ we see that
+
+\begin{equation*}
+    N_i^{(2)}(t) N_j^{(2)}(t)
+    = a_{i,k} a_{j,k} + \bigl(a_{i,k} b_{j,k} + a_{j,k} b_{i,k}\bigr) (t - u_k) + b_{i,k} b_{j,k} (t - u_k)^2.
+\end{equation*}
+
+With this expression and $\Delta_k = u_{k+1} - u_k$,
+
+\begin{align}
+    \MoveEqLeft
+    \int_{u_k}^{u_{k+1}} N_i^{(2)}(t) N_j^{(2)}(t) \dd t 
+    \nonumber
+    \\
+    & = \int_0^{\Delta_k} a_{i,k} a_{j,k} + \bigl(a_{i,k} b_{j,k} + a_{j,k} b_{i,k}\bigr) s + b_{i,k} b_{j,k} s^2 \dd s 
+    \nonumber
+    \\
+    & = a_{i,k} a_{j,k} \Delta_k + \bigl(a_{i,k} b_{j,k} + a_{j,k} b_{i,k}\bigr) \frac12 \Delta_k^2 + b_{i,k} b_{j,k} \frac13 \Delta_k^3.
+    \label{eq:smooth.spline_integral}
+\end{align}
+
+The slope $b_{i,k} = N_i^{(3)}(t)$, but \textit{smooth.spline} only use the second order derivatives.
+We see readily that $a_{i,k} = N_i^{(2)}(u_k)$.
+Let $\Delta y_{i,k} = N_i^{(2)}(u_{k+1}) - N_i^{(2)}(u_k)$.
+Then $b_{i,k} = \Delta y_{i,k} / \Delta_k$.
+With these expressions, many of the $\Delta_k$'s can be removed from \cref{eq:smooth.spline_integral}:
+
+\begin{align*}
+    \MoveEqLeft
+    \int_{u_k}^{u_{k+1}} N_i^{(2)}(t) N_j^{(2)}(t) \dd t 
+    \\
+    & = a_{i,k} a_{j,k} \Delta_k + \Bigl(a_{i,k} \frac{\Delta y_{j,k}}{\Delta_k} + a_{j,k} \frac{\Delta y_{i,k}}{\Delta_k}\Bigr) \frac12 \Delta_k^2 + \frac{\Delta y_{i,k}}{\Delta_k} \frac{\Delta y_{j,k}}{\Delta_k} \frac13 \Delta_k^3
+    \\
+    & = a_{i,k} a_{j,k} \Delta_k + \bigl(a_{i,k} \Delta y_{j,k} + a_{j,k} \Delta y_{i,k}\bigr) \frac12 \Delta_k + \Delta y_{i,k} \Delta y_{j,k} \frac13 \Delta_k.
+\end{align*}
+
+
+\paragraph{Speed-ups}
+
+From the definition we readily see that $\mat\Sigma$ is symmetric.
+We know from \cite[P2.1]{Piegl:Tiller:1997} that the support of $N_i$ is $[u_i, u_{i+p+1}]$ and therefore 
+\begin{equation*}
+    \supp N_i \cap \supp N_j = \emptyset
+    \quad\text{if}\:
+    |i - j| > p.
+\end{equation*}
+This implies that $\Sigma_{i,j} = 0$ if $|i - j| > p$.
+We make a few observations to speed up the computation of $\mat\Sigma$:
+
+First, we see from \cref{eq:sigma_entry_computation} and the definition of the design matrix that we need to compute $N_i^{(k)}(u_j)$ for $0\leq i\leq n$, $0\leq j\leq m$ and $0\leq k\leq 3$.
+Since the same function values appear in multiple entries it makes sense to only compute them once and reuse them.
+
+Secondly, the bounded support of the spline functions imply that there are only a few non-zero terms in \cref{eq:sigma_entry_computation}.
+More specifically, assuming $i\leq j$,
+\begin{gather*}
+    N_i'(u_m) N_j^{(2)}(u_m) \neq 0
+    \ \text{only if}\  i \geq m - 2p;
+    \\
+    N_i'(u_0) N_j^{(2)}(u_0) \neq 0
+    \ \text{only if}\ j < p;
+     \\
+    N_j^{(3)}(u_k) \bigl(N_i(u_{k+1}) - N_i(u_k)\bigr) \neq 0
+    \ \text{only if}\ \max\{i, p\} \leq k\leq \min\{j, m - p - 2\}.
+\end{gather*}
+
+\subsection{Banded matrices}
+
+A banded matrix can be represented and stored efficiently \cite[Section 1.2.5]{Golub:van_Loan:2013} and this representation is used when solving \cref{eq:normal_equation}.
+
+
+\printbibliography
+
+\end{document}
+
