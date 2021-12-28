@@ -1,0 +1,152 @@
+SmoothSpline
+============
+
+[![Build Status](https://github.com/robertdj/SmoothSpline.jl/workflows/CI/badge.svg)](https://github.com/robertdj/SmoothSpline.jl/actions)
+[![codecov.io](https://codecov.io/github/robertdj/SmoothSpline.jl/coverage.svg?branch=master)](https://codecov.io/github/robertdj/SmoothSpline.jl?branch=master)
+
+The *SmoothSpline* package is a port of R's `smooth.spline` function for regression with cubic B-splines.
+My original goal was to get "exactly" the same results as `smooth.spline`.
+
+Along the way I discovered discrepancies between the R/Fortran *implementation* and the math. 
+I implement the math correctly, but also *test* against the R/Fortran implementation.
+All the bloody details are in `doc/splines.pdf`.
+
+There is already a similar package for this kind of regression, namely the [SmoothingSplines package](https://github.com/nignatiadis/SmoothingSplines.jl).
+But *SmoothingSplines* aim to "provide the same functionality as R's `smooth.spline` function", but "the implementation however is completely independent of the R function".
+
+The *SmoothSpline* package is currently quite self-contained, because a sub-goal was to get a better understanding of how spline regression works.
+For example, I provide all functionality for working with B-splines instead of relying on other packages to do this.
+
+
+## Installation
+
+Switch to `Pkg` mode in Julia with `]` and run
+
+```julia; eval = false
+add SmoothSpline
+```
+
+
+## Usage
+
+As an example, we make a regression with the classic `mtcars` dataset from R and compare 
+
+```julia
+using Plots
+using SmoothSpline
+using RCall
+```
+
+First we perform the regression in R using the [RCall package](https://github.com/JuliaInterop/RCall.jl).
+
+```julia
+spar = 0.7
+spline_model_r = RCall.rcopy(R"spline_model <- smooth.spline(mtcars[['hp']], mtcars[['mpg']], spar = $spar)")
+x = spline_model_r[:data][:x]
+y = spline_model_r[:data][:y]
+x_min, x_max = extrema(x)
+prections_r = RCall.rcopy(R"predict(spline_model, seq(from = $x_min, to = $x_max, by = 1))")
+# prections_r = RCall.rcopy(R"predict(spline_model, seq(from = $(minimum(x)), to = $(maximum(x)), by = 1))")
+```
+
+In Julia with SmoothSpline using the same data
+
+```julia; eval = false
+ss = SmoothSpline.smooth_spline(hp, mpg)
+```
+
+
+```julia; label = "predictions"
+scatter(x, y, label = "data")
+plot!(prections_r[:x], prections_r[:y], label = "R")
+```
+
+```julia
+coef_r = spline_model_r[:fit][:coef]
+spline_reg_data = SmoothSpline.SplineRegData(x, y)
+coef_julia1 = SmoothSpline.regression(spline_reg_data, spar)
+
+using Mocking
+Mocking.activate()
+patch1 = @patch SmoothSpline.OneThird() = 0.333
+coef_julia2 = apply(patch1) do
+    SmoothSpline.regression(spline_reg_data, spar)
+end
+
+import LinearAlgebra
+patch2 = @patch SmoothSpline.tr(A, lead, lag) = LinearAlgebra.tr(A)
+coef_julia3 = apply(patch2) do
+    SmoothSpline.regression(spline_reg_data, spar)
+end
+
+coef_julia4 = apply([patch1, patch2]) do
+    SmoothSpline.regression(spline_reg_data, spar)
+end
+
+hcat(coef_r, coef_julia1, coef_julia2, coef_julia3)
+@show maximum(abs, coef_r - coef_julia2)
+@show maximum(abs, coef_r - coef_julia3)
+@show maximum(abs, coef_r - coef_julia4)
+maximum(abs, coef_r - coef_julia1)
+```
+
+
+# License
+
+I have been scrutinizing the source code of R's `smooth.spline`.
+R is licensed under GPL and I have therefore created a "derivative work" that also has to be licensed under GPL.
+
+To spare others of this I have included a description of the math used in *SmoothSpline* in the `doc` folder of this repo.
+Since this document does not contain code it should supposedly remove the yoke of the GPL if others implement similar functionality *based on the document*.
+
+**Please note**: This is not legal advice, but based on my understanding of the GPL.
+
+
+# Technical details
+
+The descriptions I am basing the implementation on use 0-based indexing
+
+Dense design matrix
+
+
+As in, too-far-under-hood stuff if you just want to use *SmoothSpline*.
+In `smooth.spline` intermediate results used in the regression can be made available in the output by setting the argument `keep.stuff` to `TRUE`.
+In particular, we get the design matrix and Tikhonov regularization term.
+I have used these when developing the package to verify my own intermediate results.
+
+However, the documentation does not explain how to interpret the output.
+I had to consult the underlying Fortran code to discover this:
+Both matrices are symmetric, banded matrices with band 3.
+They are stored as a vector of length 4*N (with N being the number of spline functions).
+
+- Entry 1 through N is the main diagonal.
+- Entry N+1 through 2N are 0 and the entries of the first upper/lower diagonal.
+- Entry 2N+1 through 3N are two 0's and the entires of the second upper/lower diagonal.
+- Entry 3N+1 through 4N are three 0's and the entires of the third upper/lower diagonal.
+
+
+# Weave
+
+This README is generated with the [Weave package](https://github.com/JunoLab/Weave.jl) using the command
+
+```julia; eval = false
+weave("README.jmd", doctype = "github", fig_path = "figures")
+```
+
+My Julia version is
+
+```julia
+import InteractiveUtils
+InteractiveUtils.versioninfo()
+```
+
+For the R calls I am using
+
+```julia
+RCall.reval("sessionInfo()")
+```
+
+```julia
+RCall.reval("sessioninfo::session_info()")
+```
+
