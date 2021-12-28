@@ -12,7 +12,7 @@ using Random
     Mocking.activate()
     patch = @patch SmoothSpline.OneThird() = 0.333
 
-    # smooth.spline scales x values to the closed unit interval before calling the compiled code
+    # smooth.spline scales x values to the closed unit interval before calling the compiled code.
     # Test both scaled and unscaled here
     N = rand(5:20)
     x_values = [10 * rand(N), [0.0; rand(N); 1.0]]
