@@ -3,30 +3,29 @@ using Mocking
 using Test
 
 using RCall
-import RDatasets
-import LinearAlgebra
 
 using Random
 
 @testset "Regression" begin
-    mtcars = RDatasets.dataset("datasets", "mtcars")
-    hp = mtcars[!, :HP] .|> float
-    mpg = mtcars[!, :MPG] .|> float
+    Random.seed!(1)
 
-    # Random.seed!(1)
-    # hp = [0.0; rand(5); 1.0] |> sort
-    # mpg = rand(length(hp))
+    Mocking.activate()
+    patch = @patch SmoothSpline.OneThird() = 0.333
+
+    # smooth.spline scales x values to the closed unit interval before calling the compiled code
+    # Test both scaled and unscaled here
+    N = rand(3:10)
+    x_values = [10 * rand(5), [0.0; rand(5); 1.0]]
+    sort!.(x_values)
+
+    @testset "Compare regression coefficients with R" for x in x_values
+        y = rand(length(x))
     
-    spline_model_r = RCall.rcopy(R"smooth.spline(x = $hp, y = $mpg, spar = 0.5, keep.stuff = TRUE)")
-    
-    spline_data = SplineRegData(hp, mpg)
-    
-    @testset "Compare regression coefficients with R" begin
+        spline_model_r = RCall.rcopy(R"smooth.spline(x = $x, y = $y, spar = 0.5, keep.stuff = TRUE)")
         coefficients_r = spline_model_r[:fit][:coef]
 
-        Mocking.activate()
-        patch = @patch SmoothSpline.OneThird() = 0.333
-
+        spline_data = SplineRegData(x, y)
+    
         apply(patch) do
             coefficients_julia = SmoothSpline.regression(spline_data, 0.5)
 
