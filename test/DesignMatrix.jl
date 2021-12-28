@@ -2,37 +2,23 @@ using SmoothSpline
 using Mocking
 using Test
 
-# import RCall
 using RCall
-import RDatasets
 import QuadGK
 import LinearAlgebra
 
 import Random
 
 include("ReshapeROutput.jl")
-# include("ExampleSpline.jl")
 
 @testset "Design matrix" begin
-    mtcars = RDatasets.dataset("datasets", "mtcars")
-    hp = mtcars[!, :HP]
-    mpg = mtcars[!, :MPG]
+    Random.seed!(1)
 
-    # Random.seed!(1)
-    # hp = [0.0; 1/3; 0.5; 1.0]
-    hp = [0.0; rand(5); 1.0] |> sort
-    mpg = rand(length(hp))
-    # hp = 1:4
-    # mpg = 1:4
+    x = [0.0; rand(15); 1.0] |> sort
+    y = rand(length(x))
     
-    spline_model_r = RCall.rcopy(R"smooth.spline($hp, $mpg, spar = 0.5, keep.stuff = TRUE)")
+    spline_model_r = RCall.rcopy(R"smooth.spline($x, $y, spar = 0.5, keep.stuff = TRUE)")
     
-    # spline_data = SplineRegData(hp, mpg)
-    spline_data = SplineRegData(float.(hp), float.(mpg))
-    
-    
-    # spline_reg_data = SplineRegData(hp, mpg)
-    # coef = regression(spline_reg_data, spar = 0.5)
+    spline_data = SplineRegData(x, y)
     
     @testset "Compare design matrix with R" begin
         design_matrix_julia = SmoothSpline.compute_design_matrix(spline_data)
@@ -42,21 +28,15 @@ include("ReshapeROutput.jl")
         weighted_design_matrix_r = vector_to_banded_matrix(spline_model_r[:auxM][:XWX])
     
         @test weighted_design_matrix ≈ weighted_design_matrix_r
-        @test maximum(abs, weighted_design_matrix - weighted_design_matrix_r) < 1e-14
     end
     
     
     @testset "Compare scaled obervations with R" begin
-        # design_matrix_julia = SmoothSpline.compute_design_matrix(spline_data)
-        # W = LinearAlgebra.diagm(spline_data.W)
-        # scaled_observations_julia = transpose(design_matrix_julia) * W * spline_data.Y
-    
         _, scaled_observations_julia = compute_tikhonov_matrix(spline_data, 0.5)
     
         scaled_observations_r = spline_model_r[:auxM][:XWy]
     
         @test scaled_observations_julia ≈ scaled_observations_r
-        @test maximum(abs, scaled_observations_julia - scaled_observations_r) < 1e-13
     end
     
     
@@ -69,9 +49,8 @@ include("ReshapeROutput.jl")
         tikhonov_matrix_r2 = transpose(cholesky_r) * cholesky_r
         
         @test tikhonov_matrix_r1 ≈ tikhonov_matrix_r2
-        @test maximum(abs, tikhonov_matrix_r1 - tikhonov_matrix_r2) < 1e-10
     end
-    
+
 
     @testset "Check computation of Gram matrix entries" begin
         gram_julia = SmoothSpline.compute_gram_matrix(spline_data)
@@ -94,8 +73,7 @@ include("ReshapeROutput.jl")
         @test gram_quadgk ≈ transpose(gram_quadgk)
         @test gram_julia ≈ transpose(gram_julia)
 
-        @test max_integration_error <= 1e-8
-
+        @test gram_julia ≈ gram_quadgk
         @test maximum(abs, gram_julia - gram_quadgk) < 10 * max_integration_error
     end
 
@@ -108,20 +86,8 @@ include("ReshapeROutput.jl")
 
         apply(patch) do
             gram_julia = SmoothSpline.compute_gram_matrix(spline_data)
+
             @test gram_r ≈ gram_julia
         end
-    end
-    
-    
-    @testset "Julia's Tikhonov matrix is better conditioned than R's" begin
-        cholesky_r = vector_to_upper_triangular(spline_model_r[:auxM][:R])
-        tikhonov_matrix_r = transpose(cholesky_r) * cholesky_r
-    
-        tikhonov_matrix_julia, _ = compute_tikhonov_matrix(spline_data, 0.5)
-
-        @show condition_number_r = LinearAlgebra.cond(tikhonov_matrix_r)
-        @show condition_number_julia = LinearAlgebra.cond(tikhonov_matrix_julia)
-
-        @test condition_number_julia <= condition_number_r
     end
 end
