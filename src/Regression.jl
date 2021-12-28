@@ -1,20 +1,21 @@
+function regression2(sr::SplineRegData, spar = 0.5)
+    ridge_normal_matrix, scaled_y = compute_tikhonov_matrix(sr, spar)
+    LinearAlgebra.LAPACK.posv!('U', ridge_normal_matrix, scaled_y)
+
+    return scaled_y
+end
+
+
 function regression(sr::SplineRegData, spar = 0.5)
-    # design_matrix = compute_design_matrix(sr)
-    # weight_matrix = Diagonal(sr.W)
-    # sigma = compute_gram_matrix(sr)
-
-    # normal_matrix = transpose(design_matrix) * weight_matrix * design_matrix
-
-    # r = tr(normal_matrix) / tr(sigma)
-    # λ = r * 256^(3 * spar - 1)
-
-    # ridge_normal_matrix = normal_matrix + λ * sigma
-    # LinearAlgebra.axpy!(λ, sigma, normal_matrix)
-
-    # ridge_normal_matrix, scaled_y = compute_tikhonov_matrix(sr, spar)
-    # LinearAlgebra.LAPACK.posv!('U', ridge_normal_matrix, scaled_y)
-
     spline_model_r = RCall.rcopy(R"smooth.spline(x = $(sr.X), y = $(sr.Y), w = $(sr.W), spar = $spar, keep.stuff = TRUE)")
+
+    # XWX = vector_to_banded_matrix(spline_model_r[:auxM][:XWX])
+    # @show XWX[LinearAlgebra.diagind(XWX)]
+    # Sigma = vector_to_banded_matrix(spline_model_r[:auxM][:Sigma])
+    # @show Sigma[LinearAlgebra.diagind(Sigma)]
+
+    # @show spline_model_r[:lambda]
+
     cholesky_r = vector_to_upper_triangular(spline_model_r[:auxM][:R])
     tikhonov_matrix_r = transpose(cholesky_r) * cholesky_r
     scaled_y = spline_model_r[:auxM][:XWy]
@@ -24,6 +25,14 @@ function regression(sr::SplineRegData, spar = 0.5)
     return scaled_y
 end
 
+function mytr(A::Matrix{T}, lead, lag) where T
+    n = LinearAlgebra.checksquare(A)
+    t = zero(T)
+    for i in lead:(n - lag)
+        t += A[i,i]
+    end
+    t
+end
 
 function compute_tikhonov_matrix(sr::SplineRegData, spar)
     design_matrix = compute_design_matrix(sr)
@@ -32,7 +41,10 @@ function compute_tikhonov_matrix(sr::SplineRegData, spar)
 
     normal_matrix = LinearAlgebra.transpose(design_matrix) * weight_matrix * design_matrix
 
-    r = LinearAlgebra.tr(normal_matrix) / LinearAlgebra.tr(sigma)
+    # @show normal_matrix[LinearAlgebra.diagind(normal_matrix)]
+    # @show sigma[LinearAlgebra.diagind(sigma)]
+
+    r = mytr(normal_matrix, 3, 3) / mytr(sigma, 3, 3)
     λ = r * 256^(3 * spar - 1)
 
     ridge_normal_matrix = normal_matrix + λ * sigma
@@ -40,6 +52,7 @@ function compute_tikhonov_matrix(sr::SplineRegData, spar)
 
     return ridge_normal_matrix, scaled_y
 end
+
 
 function vector_to_upper_triangular(x)
     nrows = div(length(x), 4)
