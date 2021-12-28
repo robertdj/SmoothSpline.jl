@@ -6,7 +6,7 @@ function regression(sr::SplineRegData, spar = 0.5)
 end
 
 
-function mytr(A::Matrix{T}, lead, lag) where T
+function tr(A::Matrix{T}, lead, lag) where T
     n = LinearAlgebra.checksquare(A)
     t = zero(T)
     for i in lead:(n - lag)
@@ -23,7 +23,7 @@ function compute_tikhonov_matrix(sr::SplineRegData, spar)
 
     normal_matrix = LinearAlgebra.transpose(design_matrix) * weight_matrix * design_matrix
 
-    r = mytr(normal_matrix, 3, 3) / mytr(sigma, 3, 3)
+    r = tr(normal_matrix, 3, 3) / tr(sigma, 3, 3)
     λ = r * 256^(3 * spar - 1)
 
     ridge_normal_matrix = normal_matrix + λ * sigma
