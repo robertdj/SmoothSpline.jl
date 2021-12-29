@@ -7,27 +7,23 @@ SmoothSpline
 The *SmoothSpline* package is a port of R's `smooth.spline` function for regression with cubic B-splines.
 My original goal was to get "exactly" the same results as `smooth.spline`.
 
+There is already a similar package for this kind of regression, namely the [SmoothingSplines package](https://github.com/nignatiadis/SmoothingSplines.jl).
+But *SmoothingSplines* aim to "provide the same functionality as R's `smooth.spline` function", but "the implementation however is completely independent of the R function".
+
 Along the way I discovered discrepancies between the R/Fortran *implementation* and the math. 
 I implement the math correctly, but also *test* against the R/Fortran implementation.
 All the bloody details are in `doc/splines.pdf`.
-
-There is already a similar package for this kind of regression, namely the [SmoothingSplines package](https://github.com/nignatiadis/SmoothingSplines.jl).
-But *SmoothingSplines* aim to "provide the same functionality as R's `smooth.spline` function", but "the implementation however is completely independent of the R function".
 
 The *SmoothSpline* package is currently quite self-contained, because a sub-goal was to get a better understanding of how spline regression works.
 For example, I provide all functionality for working with B-splines instead of relying on other packages to do this.
 
 
-## Installation
+# Installation
 
-Switch to `Pkg` mode in Julia with `]` and run
-
-```julia; eval = false
-add SmoothSpline
-```
+SmoothSpline is not registered as an official package.
 
 
-## Usage
+# Usage
 
 As an example, we make a regression with the classic `mtcars` dataset from R and compare 
 
@@ -38,31 +34,45 @@ using RCall
 ```
 
 First we perform the regression in R using the [RCall package](https://github.com/JuliaInterop/RCall.jl).
+The `spar` parameter should be in the interval `(0, 1]` and controls the sensitivity to outliers.
 
 ```julia
 spar = 0.7
-spline_model_r = RCall.rcopy(R"spline_model <- smooth.spline(mtcars[['hp']], mtcars[['mpg']], spar = $spar)")
+spline_model_r = RCall.rcopy(R"spline_model <- smooth.spline(mtcars[['hp']], mtcars[['mpg']], spar = $spar)");
+```
+
+We can make predictions with this model to compare with the predictions from *SmoothSpline*.
+
+```julia
 x = spline_model_r[:data][:x]
 y = spline_model_r[:data][:y]
 x_min, x_max = extrema(x)
-prections_r = RCall.rcopy(R"predict(spline_model, seq(from = $x_min, to = $x_max, by = 1))")
-# prections_r = RCall.rcopy(R"predict(spline_model, seq(from = $(minimum(x)), to = $(maximum(x)), by = 1))")
+predictions_r = RCall.rcopy(R"predict(spline_model, seq(from = $x_min, to = $x_max, by = 1))");
 ```
 
 In Julia with SmoothSpline using the same data
 
 ```julia; eval = false
-ss = SmoothSpline.smooth_spline(hp, mpg)
+spline_model = SmoothSpline.smooth_spline(x, y, spar)
 ```
 
+We can now visually compare the two regression lines.
 
 ```julia; label = "predictions"
 scatter(x, y, label = "data")
-plot!(prections_r[:x], prections_r[:y], label = "R")
+plot!(predictions_r[:x], predictions_r[:y], label = "R")
+# plot!(spline_model, label = "julia")
 ```
+
+
+## Discrepancies
+
+With the [Mocking package](https://github.com/invenia/Mocking.jl) we can emulate `smooth.spline`'s behavior with *SmoothSpline*.
+The reason for these mocks are explained in `doc/splines.pdf`, so I wont comment further on the motivation here.
 
 ```julia
 coef_r = spline_model_r[:fit][:coef]
+@show extrema(coef_r)
 spline_reg_data = SmoothSpline.SplineRegData(x, y)
 coef_julia1 = SmoothSpline.regression(spline_reg_data, spar)
 
@@ -104,25 +114,13 @@ Since this document does not contain code it should supposedly remove the yoke o
 
 # Technical details
 
-The descriptions I am basing the implementation on use 0-based indexing
+*SmoothSpline* is currently proof-of-concept code and I have focused on correctness and not e.g. optimizing execution speed.
+I know of the following points that (c|sh)ould be improved:
 
-Dense design matrix
-
-
-As in, too-far-under-hood stuff if you just want to use *SmoothSpline*.
-In `smooth.spline` intermediate results used in the regression can be made available in the output by setting the argument `keep.stuff` to `TRUE`.
-In particular, we get the design matrix and Tikhonov regularization term.
-I have used these when developing the package to verify my own intermediate results.
-
-However, the documentation does not explain how to interpret the output.
-I had to consult the underlying Fortran code to discover this:
-Both matrices are symmetric, banded matrices with band 3.
-They are stored as a vector of length 4*N (with N being the number of spline functions).
-
-- Entry 1 through N is the main diagonal.
-- Entry N+1 through 2N are 0 and the entries of the first upper/lower diagonal.
-- Entry 2N+1 through 3N are two 0's and the entires of the second upper/lower diagonal.
-- Entry 3N+1 through 4N are three 0's and the entires of the third upper/lower diagonal.
+- All algorithms related to spline evaluation are based on a book that use 0-indexed arrays. Instead of translating this to 1-indexed arrays I rely on the [OffsetArrays package](https://github.com/JuliaArrays/OffsetArrays.jl).
+- Evaluation of the Gram matrix make an abundance of calls for spline function values.
+- The design matrix and Gram matrices are banded and therefore admits compact representations like in the [BandedMatrices package](https://github.com/JuliaMatrices/BandedMatrices.jl). I save them as dense matrices.
+- There are fast algorithms for solving linear equations with banded (semi-)definite matrices. I use a LAPACK solver for dense matrices.
 
 
 # Weave
@@ -145,8 +143,3 @@ For the R calls I am using
 ```julia
 RCall.reval("sessionInfo()")
 ```
-
-```julia
-RCall.reval("sessioninfo::session_info()")
-```
-
