@@ -28,9 +28,11 @@ SmoothSpline is not registered as an official package.
 As an example, we make a regression with the classic `mtcars` dataset from R and compare 
 
 ```julia
+import LinearAlgebra
+using Mocking
 using Plots
-using SmoothSpline
 using RCall
+using SmoothSpline
 ```
 
 First we perform the regression in R using the [RCall package](https://github.com/JuliaInterop/RCall.jl).
@@ -39,29 +41,45 @@ The `spar` parameter should be in the interval `(0, 1]` and controls the sensiti
 ```julia
 spar = 0.7
 spline_model_r = RCall.rcopy(R"spline_model <- smooth.spline(mtcars[['hp']], mtcars[['mpg']], spar = $spar)");
+spline_model_r = RCall.rcopy(R"spline_model <- smooth.spline(cars[['speed']], cars[['dist']], spar = $spar)");
 ```
 
 We can make predictions with this model to compare with the predictions from *SmoothSpline*.
 
 ```julia
-x = spline_model_r[:data][:x]
-y = spline_model_r[:data][:y]
-x_min, x_max = extrema(x)
-predictions_r = RCall.rcopy(R"predict(spline_model, seq(from = $x_min, to = $x_max, by = 1))");
+obs_x = spline_model_r[:data][:x]
+obs_y = spline_model_r[:data][:y]
+x = range(extrema(obs_x)...; step = 1)
+predictions_r = RCall.rcopy(R"predict(spline_model, $x)");
 ```
 
 In Julia with SmoothSpline using the same data
 
-```julia; eval = false
-spline_model = SmoothSpline.smooth_spline(x, y, spar)
+```julia
+spline_model = SmoothSpline.smooth_spline(obs_x, obs_y, spar)
+predictions_julia = SmoothSpline.predict(spline_model, x);
 ```
 
 We can now visually compare the two regression lines.
 
 ```julia; label = "predictions"
-scatter(x, y, label = "data")
+scatter(obs_x, obs_y, label = "data", legend = :topleft)
 plot!(predictions_r[:x], predictions_r[:y], label = "R")
-# plot!(spline_model, label = "julia")
+plot!(x, predictions_julia, label = "julia")
+```
+
+The R coefficients and their order of magnitude
+
+```julia
+coef_r = spline_model_r[:fit][:coef]
+extrema(coef_r)
+```
+
+The differences between the R coefficients and Julia coefficients:
+
+```julia
+@show maximum(abs, coef_r - spline_model.Coef)
+maximum(abs, predictions_r[:y] - predictions_julia)
 ```
 
 
@@ -71,33 +89,33 @@ With the [Mocking package](https://github.com/invenia/Mocking.jl) we can emulate
 The reason for these mocks are explained in `doc/splines.pdf`, so I wont comment further on the motivation here.
 
 ```julia
-coef_r = spline_model_r[:fit][:coef]
-@show extrema(coef_r)
-spline_reg_data = SmoothSpline.SplineRegData(x, y)
-coef_julia1 = SmoothSpline.regression(spline_reg_data, spar)
-
-using Mocking
 Mocking.activate()
+
 patch1 = @patch SmoothSpline.OneThird() = 0.333
-coef_julia2 = apply(patch1) do
-    SmoothSpline.regression(spline_reg_data, spar)
+spline_model_like_R = apply(patch1) do
+    SmoothSpline.smooth_spline(obs_x, obs_y, spar)
 end
 
-import LinearAlgebra
 patch2 = @patch SmoothSpline.tr(A, lead, lag) = LinearAlgebra.tr(A)
-coef_julia3 = apply(patch2) do
-    SmoothSpline.regression(spline_reg_data, spar)
+spline_model_tr = apply(patch2) do
+    SmoothSpline.smooth_spline(obs_x, obs_y, spar)
 end
 
-coef_julia4 = apply([patch1, patch2]) do
-    SmoothSpline.regression(spline_reg_data, spar)
-end
+maximum(abs, coef_r - spline_model_tr.Coef)
+```
 
-hcat(coef_r, coef_julia1, coef_julia2, coef_julia3)
-@show maximum(abs, coef_r - coef_julia2)
-@show maximum(abs, coef_r - coef_julia3)
-@show maximum(abs, coef_r - coef_julia4)
-maximum(abs, coef_r - coef_julia1)
+One of the models is "exactly" like R's:
+
+```julia
+maximum(abs, coef_r - spline_model_like_R.Coef)
+```
+
+Comparing the models visually
+
+```julia; label = "comparison"
+scatter(obs_x, obs_y, label = "data", legend = :topleft)
+plot!(x, SmoothSpline.predict(spline_model_like_R, x), label = "R")
+plot!(x, SmoothSpline.predict(spline_model_tr, x), label = "julia")
 ```
 
 
@@ -123,7 +141,7 @@ I know of the following points that (c|sh)ould be improved:
 - There are fast algorithms for solving linear equations with banded (semi-)definite matrices. I use a LAPACK solver for dense matrices.
 
 
-# Weave
+# Reproducibility
 
 This README is generated with the [Weave package](https://github.com/JunoLab/Weave.jl) using the command
 
