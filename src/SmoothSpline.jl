@@ -23,6 +23,5 @@ export
 include("Splines.jl")
 include("DesignMatrix.jl")
 include("Regression.jl")
-include("Plot.jl")
 
 end # module
