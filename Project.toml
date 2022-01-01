@@ -8,7 +8,6 @@ LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Mocking = "78c3b35d-d492-501b-9361-3d52fe80e533"
 OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
 QuadGK = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
-RDatasets = "ce6b1742-4840-55fa-b093-852dadbb1d8b"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
