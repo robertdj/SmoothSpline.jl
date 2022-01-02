@@ -1,6 +1,5 @@
 module SmoothSpline
 
-using RCall
 using Mocking
 
 import LinearAlgebra
@@ -15,7 +14,9 @@ export
     basis_funs_deriv,
     find_span,
     regression,
-    compute_tikhonov_matrix
+    compute_tikhonov_matrix,
+    predict,
+    smooth_spline
 
 include("Splines.jl")
 include("DesignMatrix.jl")
