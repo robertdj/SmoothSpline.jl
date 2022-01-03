@@ -2,7 +2,7 @@ SmoothSpline
 ============
 
 [![Build Status](https://github.com/robertdj/SmoothSpline.jl/workflows/CI/badge.svg)](https://github.com/robertdj/SmoothSpline.jl/actions)
-[![codecov.io](https://codecov.io/github/robertdj/SmoothSpline.jl/coverage.svg?branch=master)](https://codecov.io/github/robertdj/SmoothSpline.jl?branch=master)
+[![codecov.io](https://codecov.io/github/robertdj/SmoothSpline.jl/coverage.svg?branch=master)](https://codecov.io/github/robertdj/SmoothSpline.jl?branch=main)
 
 The *SmoothSpline* package is a port of R's `smooth.spline` function for regression with cubic B-splines.
 My original goal was to get "exactly" the same results as `smooth.spline`.
