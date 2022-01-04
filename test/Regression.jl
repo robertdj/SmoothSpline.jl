@@ -1,37 +1,43 @@
-using SmoothSpline
 using Mocking
+using Random
+using SmoothSpline
 using Test
 
 using RCall
 
-using Random
 
 @testset "Regression" begin
-    Random.seed!(1)
+    rng = Random.Xoshiro(1)
+
+    # smooth.spline scales x values to the closed unit interval before calling the compiled code.
+    # Results should not depend on such an assumption
+    N = rand(rng, 5:20)
+    obs_x = 10 * rand(rng, N)
+    obs_y = 10 * rand(rng, N)
+
+    spar = rand(rng)
+    spline_model_r = RCall.rcopy(R"spline_model <- smooth.spline(x = $obs_x, y = $obs_y, spar = $spar)")
 
     Mocking.activate()
     patch = @patch SmoothSpline.OneThird() = 0.333
 
-    # smooth.spline scales x values to the closed unit interval before calling the compiled code.
-    # Test both scaled and unscaled here
-    N = rand(5:20)
-    x_values = [10 * rand(N), [0.0; rand(N); 1.0]]
-    sort!.(x_values)
+    spline_model_julia = apply(patch) do
+        SmoothSpline.smooth_spline(obs_x, obs_y, spar)
+    end
 
-    spar_values = rand(2)
-
-    @testset "Compare regression coefficients with R" for x in x_values, spar in spar_values
-        y = rand(length(x))
-    
-        spline_model_r = RCall.rcopy(R"smooth.spline(x = $x, y = $y, spar = $spar, keep.stuff = TRUE)")
+    @testset "Compare regression coefficients with R" begin
         coefficients_r = spline_model_r[:fit][:coef]
 
-        spline_data = SplineRegData(x, y)
-    
-        apply(patch) do
-            coefficients_julia = SmoothSpline.regression(spline_data, spar)
+        @test spline_model_julia.Coef ≈ coefficients_r
+    end
 
-            @test coefficients_julia ≈ coefficients_r
-        end
+    @testset "Compare predictions with R" begin
+        x = range(extrema(obs_x)...; length = 100)
+
+        predictions_r = RCall.rcopy(R"predict(spline_model, $x)")
+        
+        predictions_julia = SmoothSpline.predict(spline_model_julia, x)
+
+        @test predictions_julia ≈ predictions_r[:y]
     end
 end
