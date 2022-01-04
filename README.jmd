@@ -2,17 +2,17 @@ SmoothSpline
 ============
 
 [![Build Status](https://github.com/robertdj/SmoothSpline.jl/workflows/CI/badge.svg)](https://github.com/robertdj/SmoothSpline.jl/actions)
-[![codecov.io](https://codecov.io/github/robertdj/SmoothSpline.jl/coverage.svg?branch=master)](https://codecov.io/github/robertdj/SmoothSpline.jl?branch=main)
+[![codecov.io](https://codecov.io/github/robertdj/SmoothSpline.jl/coverage.svg?branch=main)](https://codecov.io/github/robertdj/SmoothSpline.jl?branch=main)
 
 The *SmoothSpline* package is a port of R's `smooth.spline` function for regression with cubic B-splines.
 My original goal was to get "exactly" the same results as `smooth.spline`.
 
+Along the way I discovered discrepancies between the R/C/Fortran implementation and the docs/theory. 
+The implementation in *SmoothSpline* follow the theory, but is *tested* against the R/C/Fortran implementation.
+All the bloody details are in `doc/splines.pdf`.
+
 There is already a similar package for this kind of regression, namely the [SmoothingSplines package](https://github.com/nignatiadis/SmoothingSplines.jl).
 But *SmoothingSplines* aim to "provide the same functionality as R's `smooth.spline` function", but "the implementation however is completely independent of the R function".
-
-Along the way I discovered discrepancies between the R/Fortran *implementation* and the math. 
-I implement the math correctly, but also *test* against the R/Fortran implementation.
-All the bloody details are in `doc/splines.pdf`.
 
 The *SmoothSpline* package is currently quite self-contained, because a sub-goal was to get a better understanding of how spline regression works.
 For example, I provide all functionality for working with B-splines instead of relying on other packages to do this.
@@ -25,7 +25,7 @@ SmoothSpline is not registered as an official package.
 
 # Usage
 
-As an example, we make a regression with the classic `mtcars` dataset from R and compare 
+As an example, we make a regression with the classic `cars` dataset from R and compare *SmoothSpline* with `smooth.spline`.
 
 ```julia
 import LinearAlgebra
@@ -44,7 +44,7 @@ spar = 0.2
 spline_model_r = RCall.rcopy(R"spline_model <- smooth.spline(cars[['speed']], cars[['dist']], spar = $spar)");
 ```
 
-We can make predictions with this model to compare with the predictions from *SmoothSpline*.
+We can make predictions with this model in R:
 
 ```julia
 obs_x = spline_model_r[:data][:x]
@@ -66,19 +66,18 @@ There is a small difference between the two sets of predictions:
 maximum(abs, predictions_r[:y] - predictions_julia)
 ```
 
-But visually they are identical:
+But visually they are identical, so we only plot one
 
 ```julia; label = "predictions"
 scatter(obs_x, obs_y, label = "data", legend = :topleft)
 plot!(predictions_r[:x], predictions_r[:y], label = "R")
-plot!(x, predictions_julia, label = "julia")
 ```
 
 
 ## Discrepancies
 
 With the [Mocking package](https://github.com/invenia/Mocking.jl) we can emulate `smooth.spline`'s behavior with *SmoothSpline*.
-The reason for these mocks are explained in `doc/splines.pdf`, so I wont comment further on the motivation here.
+The reason for these mocks are explained in `doc/splines.pdf`.
 
 ```julia
 Mocking.activate()
@@ -105,8 +104,6 @@ maximum(abs, predictions_r[:y] - predictions_julia_like_R)
 The other is so different that we can visualize it
 
 ```julia; label = "comparison"
-scatter(obs_x, obs_y, label = "data", legend = :topleft)
-plot!(x, predictions_julia_like_R, label = "R")
 plot!(x, SmoothSpline.predict(spline_model_tr, x), label = "julia")
 ```
 
@@ -116,7 +113,7 @@ plot!(x, SmoothSpline.predict(spline_model_tr, x), label = "julia")
 I have been scrutinizing the source code of R's `smooth.spline`.
 R is licensed under GPL and I have therefore created a "derivative work" that also has to be licensed under GPL.
 
-To spare others of this I have included a description of the math used in *SmoothSpline* in the `doc` folder of this repo.
+To spare others of this, the description in `doc/splines.pdf` contain all the details I rely on for the implementation.
 Since this document does not contain code it should supposedly remove the yoke of the GPL if others implement similar functionality *based on the document*.
 
 **Please note**: This is not legal advice, but based on my understanding of the GPL.
@@ -128,7 +125,7 @@ Since this document does not contain code it should supposedly remove the yoke o
 I know of the following points that (c|sh)ould be improved:
 
 - Evaluation of the Gram matrix make an abundance of calls for spline function values.
-- The design matrix and Gram matrices are banded and therefore admits compact representations like in the [BandedMatrices package](https://github.com/JuliaMatrices/BandedMatrices.jl). I save them as dense matrices.
+- The design matrix and Gram matrix are banded and therefore admits compact representations like in the [BandedMatrices package](https://github.com/JuliaMatrices/BandedMatrices.jl). I save them as dense matrices.
 - There are fast algorithms for solving linear equations with banded (semi-)definite matrices. I use a LAPACK solver for dense matrices.
 - All algorithms related to spline evaluation are based on a book that use 0-indexed arrays. Instead of translating this to 1-indexed arrays I rely on the [OffsetArrays package](https://github.com/JuliaArrays/OffsetArrays.jl).
 
