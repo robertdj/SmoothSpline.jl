@@ -7,8 +7,9 @@ SmoothSpline
 The *SmoothSpline* package is a port of R's `smooth.spline` function for regression with cubic B-splines.
 My original goal was to get "exactly" the same results as `smooth.spline`.
 
-Along the way I discovered discrepancies between the R/C/Fortran implementation and the docs/theory. 
-The implementation in *SmoothSpline* follow the theory, but is *tested* against the R/C/Fortran implementation.
+The internals of `smooth.spline` use R, C and Fortran -- parts of it at least 30 years old.
+Along the way I discovered discrepancies between the `smooth.spline` implementation and its docs/theory. 
+The implementation in *SmoothSpline* follow mostly  `smooth.spline`, but is *tested* against the original.
 All the bloody details are in `doc/splines.pdf`.
 
 There is already a similar package for this kind of regression, namely the [SmoothingSplines package](https://github.com/nignatiadis/SmoothingSplines.jl).
