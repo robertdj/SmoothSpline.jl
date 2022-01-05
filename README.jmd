@@ -124,6 +124,7 @@ Since this document does not contain code it should supposedly remove the yoke o
 *SmoothSpline* is currently proof-of-concept code and I have focused on correctness and not e.g. optimizing execution speed.
 I know of the following points that (c|sh)ould be improved:
 
+- Better input handling.
 - Evaluation of the Gram matrix make an abundance of calls for spline function values.
 - The design matrix and Gram matrix are banded and therefore admits compact representations like in the [BandedMatrices package](https://github.com/JuliaMatrices/BandedMatrices.jl). I save them as dense matrices.
 - There are fast algorithms for solving linear equations with banded (semi-)definite matrices. I use a LAPACK solver for dense matrices.
