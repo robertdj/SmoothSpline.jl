@@ -41,6 +41,7 @@ function max_function_index(B::BSpline)
 end
 
 
+# searchsortedlast
 function find_span(u, B)
     m = max_knot_index(B)
     if u < B.Knots[0] || u > B.Knots[m]

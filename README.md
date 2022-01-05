@@ -7,8 +7,9 @@ SmoothSpline
 The *SmoothSpline* package is a port of R's `smooth.spline` function for regression with cubic B-splines.
 My original goal was to get "exactly" the same results as `smooth.spline`.
 
-Along the way I discovered discrepancies between the R/C/Fortran implementation and the docs/theory. 
-The implementation in *SmoothSpline* follow the theory, but is *tested* against the R/C/Fortran implementation.
+The internals of `smooth.spline` use R, C and Fortran -- parts of it at least 30 years old.
+Along the way I discovered discrepancies between the `smooth.spline` implementation and its docs/theory. 
+The implementation in *SmoothSpline* follow mostly  `smooth.spline`, but is *tested* against the original.
 All the bloody details are in `doc/splines.pdf`.
 
 There is already a similar package for this kind of regression, namely the [SmoothingSplines package](https://github.com/nignatiadis/SmoothingSplines.jl).
@@ -163,6 +164,7 @@ Since this document does not contain code it should supposedly remove the yoke o
 *SmoothSpline* is currently proof-of-concept code and I have focused on correctness and not e.g. optimizing execution speed.
 I know of the following points that (c|sh)ould be improved:
 
+- Better input handling.
 - Evaluation of the Gram matrix make an abundance of calls for spline function values.
 - The design matrix and Gram matrix are banded and therefore admits compact representations like in the [BandedMatrices package](https://github.com/JuliaMatrices/BandedMatrices.jl). I save them as dense matrices.
 - There are fast algorithms for solving linear equations with banded (semi-)definite matrices. I use a LAPACK solver for dense matrices.

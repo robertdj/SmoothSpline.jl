@@ -18,7 +18,7 @@ include("ReshapeROutput.jl")
     
     spline_model_r = RCall.rcopy(R"smooth.spline($x, $y, spar = 0.5, keep.stuff = TRUE)")
     
-    spline_data = SplineRegData(x, y)
+    spline_data = SmoothSpline.SplineRegData(x, y)
     
     @testset "Compare design matrix with R" begin
         design_matrix_julia = SmoothSpline.compute_design_matrix(spline_data)
@@ -32,7 +32,7 @@ include("ReshapeROutput.jl")
     
     
     @testset "Compare scaled obervations with R" begin
-        _, scaled_observations_julia = compute_tikhonov_matrix(spline_data, 0.5)
+        _, scaled_observations_julia = SmoothSpline.compute_tikhonov_matrix(spline_data, 0.5)
     
         scaled_observations_r = spline_model_r[:auxM][:XWy]
     
