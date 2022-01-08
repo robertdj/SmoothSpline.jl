@@ -55,14 +55,14 @@
 
 \maketitle
 
-Here I document the math used in the Julia package \textit{SmoothSpline} that performs regression with B-splines with a Tikhonov regularisation.
+Here I document the math used in the Julia package \textit{SmoothSpline} that performs regression with B-splines using a Tikhonov regularisation.
 
 The \textit{SmoothSpline} package is a port of the \textit{smooth.spline} function from R.
-During the implementation I discovered two \enquote{bugs} in \textit{smooth.spline}:
+During the implementation I discovered two special things in \textit{smooth.spline}'s implementation that I have not seen in its documentation:
 
 \begin{itemize}
-    \item In one computation $\tfrac13$ is hard-coded to be $0.333$. This approximation was fine when the word size of the computer was 16 bit, but not with 64 bit.
-    \item Two matrix traces are computed. In the code the first two and last two entries on the diagonal are \emph{not} included in the trace. This is not mentioned in \textit{smooth.spline}'s documentation.
+    \item Two matrix traces are computed. In the code the first two and last two entries on the diagonal are \emph{not} included in the trace. 
+    \item In one computation $\tfrac13$ is hard-coded to be $0.333$. This approximation is a bit crude when the word size of the computer is 64 bit.
 \end{itemize}
 
 I will comment more on these points later in this document.
@@ -96,6 +96,10 @@ It is allowed to have multiple observations with similar $x$ values (and $y$ val
 Observation $i$ has an associated weight $w_i$, that by default is $1$.
 Observations with similar $x$ values are grouped by summing their weights and taking the average of thier $y$ values.
 In the following we assume that all $x$ values are distinct and that the observations are sorted by their $x$ values.
+
+The choice of B-splines (that is, the choice of their knots) of course influences everything.
+In \textit{smooth.spline} the breakpoints are evenly distributed over from the smallest to the largest $x$ value.
+I will update this document at a later point with how the number of breakpoints is chosen from the number of observations.
 
 We want to perform regression with $m$ B-splines on the interval $[x_1, x_n]$.
 That is, compute an approximation with the function
@@ -166,7 +170,7 @@ The map is
     r = \frac{\tr(\T{\mat X} \mat W \mat X)}{\tr(\mat\Sigma)}.
 \end{equation*}
 
-In the code, however, it is not the standard traces that are computed.
+In the code, however, it is not the standard traces that are computed -- both in \textit{SmoothSpline} and \textit{smooth.spline}.
 The first two entries and the last two entries of the diagonals are discarded in the sum.
 I have not found documentation to explain this, but I \emph{suspect} that it is to reduce the impact of the endpoint knots that occur in multiple splines -- cf. \cref{sec:bsplines}.
 
