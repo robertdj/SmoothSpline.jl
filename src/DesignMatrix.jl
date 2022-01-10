@@ -31,6 +31,7 @@ function SplineRegData(x, y, w)
     sorted_x = x[sort_perm_for_x]
     sorted_y = y[sort_perm_for_x]
 
+    # TODO: Should also work for almost equal x's
     # TODO: Not for general w
     unique_x, weights = StatsBase.rle(sorted_x)
     unique_x_length = length(unique_x)
@@ -163,21 +164,20 @@ function compute_gram_matrix_entry(i, j, B)
     k_start = min_index
     k_stop = min(max_index + p + 1, M - 1)
     for k in k_start:k_stop
-        
-        aᵢ = single_basis_function_deriv(i, B.Knots[k], 2, B)[2]
-        aⱼ = single_basis_function_deriv(j, B.Knots[k], 2, B)[2]
-        upper_values_i = single_basis_function_deriv(i, B.Knots[k + 1], 2, B)[2]
-        upper_values_j = single_basis_function_deriv(j, B.Knots[k + 1], 2, B)[2]
+        yi1 = single_basis_function_deriv(i, B.Knots[k], 2, B)[2]
+        yi2 = single_basis_function_deriv(i, B.Knots[k + 1], 2, B)[2]
+        Δyi = yi2 - yi1
 
-        Δyᵢ = upper_values_i - aᵢ
-        Δyⱼ = upper_values_j - aⱼ
+        yj1 = single_basis_function_deriv(j, B.Knots[k], 2, B)[2]
+        yj2 = single_basis_function_deriv(j, B.Knots[k + 1], 2, B)[2]
+        Δyj = yj2 - yj1
 
         Δₖ = B.Knots[k + 1] - B.Knots[k]
 
-        this_result = aᵢ * aⱼ + 0.5 * (aᵢ * Δyⱼ + aⱼ * Δyᵢ) + Δyⱼ * Δyᵢ * one_third
-        this_result *= Δₖ
+        kth_term = yi1 * yj1 + 0.5 * (yi1 * Δyj + yj1 * Δyi) + Δyj * Δyi * one_third
+        kth_term *= Δₖ
 
-        result += this_result
+        result += kth_term
     end
 
     return result
