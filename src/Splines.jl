@@ -86,7 +86,7 @@ function basis_funs(i, u, B)
         right[j] = B.Knots[i + j] - u
 
         saved = 0.0
-        for r = 0:j - 1
+        for r in 0:j - 1
             temp = N[r] / (right[r + 1] + left[j - r])
             N[r] = saved + right[r + 1] * temp
             saved = left[j - r] * temp
@@ -112,7 +112,7 @@ function basis_funs_deriv(i, u, n, B)
         right[j] = B.Knots[i + j] - u
 
         saved = 0.0
-        for r = 0:j - 1
+        for r in 0:j - 1
             ndu[j, r] = right[r + 1] + left[j - r]
             temp = ndu[r, j - 1] / ndu[j, r]
 
@@ -164,7 +164,7 @@ function basis_funs_deriv(i, u, n, B)
     r = p
     for k in 1:n
         ders[k, :] *= r
-        r *= (p - k)
+        r *= p - k
     end
 
     return ders

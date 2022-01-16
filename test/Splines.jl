@@ -1,3 +1,4 @@
+import Random
 using SmoothSpline
 using Test
 
@@ -34,7 +35,9 @@ include("ExampleSpline.jl")
 
     # Example 2.2 on page 54 in "The NURBS Book"
     @testset "Specific spline values in $u" for u in 0:0.5:5
-        u += 0.05 * randn()
+        rng = Random.Xoshiro(1)
+
+        u += 0.05 * randn(rng)
         u = min(max(0, u), 5)
 
         knot_idx = SmoothSpline.find_span(u, B)
