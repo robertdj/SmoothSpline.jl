@@ -103,6 +103,7 @@ plot!(predictions_r[:x], predictions_r[:y], label = "R")
 
 With the [Mocking package](https://github.com/invenia/Mocking.jl) we can emulate `smooth.spline`'s behavior with *SmoothSpline*.
 The reason for these mocks are explained in `doc/splines.pdf`.
+The first mock demonstrates why the predictions above are slightly off -- R use a crude approximation.
 
 ```julia
 Mocking.activate()
@@ -112,18 +113,13 @@ spline_model_like_R = apply(patch1) do
     SmoothSpline.smooth_spline(obs_x, obs_y, spar)
 end
 
-patch2 = @patch SmoothSpline.tr(A, lead, lag) = LinearAlgebra.tr(A)
-spline_model_tr = apply(patch2) do
-    SmoothSpline.smooth_spline(obs_x, obs_y, spar)
-end
-
 predictions_julia_like_R = SmoothSpline.predict(spline_model_like_R, x);
 ```
 
 
 
 
-One of the models is "exactly" like R's:
+The predictions are now "exactly" like R's:
 
 ```julia
 maximum(abs, predictions_r[:y] - predictions_julia_like_R)
@@ -137,7 +133,19 @@ maximum(abs, predictions_r[:y] - predictions_julia_like_R)
 
 
 
-The other is so different that we can visualize it
+The second mock demonstrates what the regression would look like if the Lagrange multiplier `λ` is computed from `spar` as in `smooth.spline`'s docs.
+
+```julia
+patch2 = @patch SmoothSpline.tr(A, lead, lag) = LinearAlgebra.tr(A)
+spline_model_tr = apply(patch2) do
+    SmoothSpline.smooth_spline(obs_x, obs_y, spar)
+end;
+```
+
+
+
+
+We can now *see* the difference
 
 ```julia
 plot!(x, SmoothSpline.predict(spline_model_tr, x), label = "julia")
