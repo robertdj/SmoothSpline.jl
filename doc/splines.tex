@@ -125,9 +125,17 @@ and
     \end{dcases}
 \end{equation*}
 Then $m = [m']$.
-The breakpoints $u_1, \dots, u_m$ are computed as
+The breakpoints $u_1, \dots, u_m$ are computed from the observations in the following way.
+Define $j: \{1, \dots, m\} \rightarrow \{1, \dots, n\}$ by
 \begin{equation*}
-    u_i = \Bigl[\frac{u_m - u_1}{m - 1} (i - 1) + u_i\Bigr].
+    j(i) =
+    \Bigl\lfloor\frac{n - 1}{m - 1} (i - 1) + 1\Bigr\rfloor.
+\end{equation*}
+Then
+\begin{equation*}
+    u_i = x_{j(i)},
+    \quad
+    1\leq i\leq m.
 \end{equation*}
 
 We want to perform regression with $m$ B-splines on the interval $[x_1, x_n]$.
