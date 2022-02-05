@@ -22,6 +22,13 @@ For example, I provide all functionality for working with B-splines instead of r
 # Installation
 
 SmoothSpline is not registered as an official package.
+Install by switching to Pkg mode in Julia with `]` and run
+
+```julia
+add https://github.com/robertdj/SmoothSpline.jl
+```
+
+
 
 
 # Usage
@@ -169,8 +176,8 @@ Since this document does not contain code it should supposedly remove the yoke o
 
 # Technical details
 
-*SmoothSpline* is currently proof-of-concept code and I have focused on correctness and not e.g. optimizing execution speed.
-I know of the following points that (c|sh)ould be improved:
+*SmoothSpline* is currently proof-of-concept code and I have focused on correctness.
+I know of the following points that should be improved:
 
 - Better input handling.
 - Evaluation of the Gram matrix make an abundance of calls for spline function values.
@@ -184,7 +191,7 @@ I know of the following points that (c|sh)ould be improved:
 This README is generated with the [Weave package](https://github.com/JunoLab/Weave.jl) using the command
 
 ```julia
-weave("README.jmd", doctype = "github", fig_path = "figures")
+weave("README.jmd", doctype = "github", fig_path = "doc")
 ```
 
 
