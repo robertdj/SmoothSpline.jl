@@ -131,6 +131,7 @@ Define $j: \{1, \dots, m\} \rightarrow \{1, \dots, n\}$ by
     j(i) =
     \Bigl\lfloor\frac{n - 1}{m - 1} (i - 1) + 1\Bigr\rfloor.
 \end{equation*}
+That is, the indices are equally distanced before being rounded.
 Then
 \begin{equation*}
     u_i = x_{j(i)},
@@ -184,7 +185,7 @@ More specifically, we let $\mat C$ denote the upper triangular matrix of the Cho
     \T{\mat C} \mat C = \T{\mat X} \mat W \mat X + \lambda \mat\Sigma.
 \end{equation*}
 
-With this convention $\T{\mat C}$ is a lower triangular matrix and we can the use the classic forward and back substitution to solve \cref{eq:normal_equation}:
+With this convention $\T{\mat C}$ is a lower triangular matrix and we can the use the classic forward and backward substitution to solve \cref{eq:normal_equation}:
 First solve $\T{\mat C} \vv z = \widetilde{\vv y}$ and then $\mat C \vv \beta = \vv z$.
 
 Note that the matrix $\mat A$ may be ill-conditioned even with the Tikhonov term.
